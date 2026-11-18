@@ -86,6 +86,8 @@ public interface UserService extends IService<User> {
      */
     String getEncryptPassword(String userPassword);
 
+    boolean isAdmin(User user);
+
 
 }
 

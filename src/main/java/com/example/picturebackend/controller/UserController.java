@@ -84,9 +84,11 @@ public class UserController {
         ThrowUtils.throwIf(userAddRequest == null, ErrorCode.PARAMS_ERROR);
         User user = new User();
         BeanUtils.copyProperties(userAddRequest, user);
-        // 默认密码 12345678
-        final String DEFAULT_PASSWORD = "12345678";
-        String encryptPassword = userService.getEncryptPassword(DEFAULT_PASSWORD);
+        ThrowUtils.throwIf(userAddRequest.getUserAccount()==null || !userAddRequest.getUserAccount().matches("[A-Za-z0-9_]{4,32}"),ErrorCode.PARAMS_ERROR,"账号必须为 4-32 位字母、数字或下划线");
+        ThrowUtils.throwIf(userAddRequest.getUserRole()!=null && !java.util.Arrays.asList("user","admin").contains(userAddRequest.getUserRole()),ErrorCode.PARAMS_ERROR,"用户角色不合法");
+        String rawPassword=userAddRequest.getUserPassword();
+        ThrowUtils.throwIf(rawPassword==null||rawPassword.length()<12||rawPassword.length()>72,ErrorCode.PARAMS_ERROR,"管理员创建账号时须设置 12-72 位初始密码");
+        String encryptPassword = userService.getEncryptPassword(rawPassword);
         user.setUserPassword(encryptPassword);
         boolean result = userService.save(user);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
@@ -102,6 +104,7 @@ public class UserController {
         ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
         User user = userService.getById(id);
         ThrowUtils.throwIf(user == null, ErrorCode.NOT_FOUND_ERROR);
+        user.setUserPassword(null);
         return ResultUtils.success(user);
     }
 
@@ -109,9 +112,12 @@ public class UserController {
      * 根据 id 获取包装类
      */
     @GetMapping("/get/vo")
-    public BaseResponse<UserVO> getUserVOById(long id) {
-        BaseResponse<User> response = getUserById(id);
-        User user = response.getData();
+    public BaseResponse<UserVO> getUserVOById(long id,HttpServletRequest request) {
+        ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
+        User current=userService.getLoginUser(request);
+        ThrowUtils.throwIf(!userService.isAdmin(current) && !current.getId().equals(id),ErrorCode.NO_AUTH_ERROR);
+        User user = userService.getById(id);
+        ThrowUtils.throwIf(user == null, ErrorCode.NOT_FOUND_ERROR);
         return ResultUtils.success(userService.getUserVO(user));
     }
 
@@ -121,7 +127,7 @@ public class UserController {
     @PostMapping("/delete")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> deleteUser(@RequestBody DeleteRequest deleteRequest) {
-        if (deleteRequest == null || deleteRequest.getId() <= 0) {
+        if (deleteRequest == null || deleteRequest.getId() == null || deleteRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         boolean b = userService.removeById(deleteRequest.getId());
@@ -155,6 +161,7 @@ public class UserController {
         ThrowUtils.throwIf(userQueryRequest == null, ErrorCode.PARAMS_ERROR);
         long current = userQueryRequest.getCurrent();
         long pageSize = userQueryRequest.getPageSize();
+        ThrowUtils.throwIf(current < 1 || pageSize < 1 || pageSize > 100, ErrorCode.PARAMS_ERROR, "分页范围不合法");
         Page<User> userPage = userService.page(new Page<>(current, pageSize),
                 userService.getQueryWrapper(userQueryRequest));
         Page<UserVO> userVOPage = new Page<>(current, pageSize, userPage.getTotal());

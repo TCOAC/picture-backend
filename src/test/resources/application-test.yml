@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:gallerytest;MODE=MySQL;DATABASE_TO_LOWER=TRUE;NON_KEYWORDS=USER;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  sql:
+    init:
+      mode: always
+app:
+  storage: local
+  upload-dir: ./target/test-uploads
+  cors:
+    allowed-origins: http://localhost:5173,http://127.0.0.1:5173
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl

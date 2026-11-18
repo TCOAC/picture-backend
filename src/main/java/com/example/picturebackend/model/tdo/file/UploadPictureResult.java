@@ -4,6 +4,9 @@ import lombok.Data;
 
 @Data
 public class UploadPictureResult {
+    private String fileHash;
+    private String picColor;
+    private String perceptualHash;
 
     /**
      * 图片地址

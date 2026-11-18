@@ -20,3 +20,68 @@ create table if not exists user
     UNIQUE KEY uk_userAccount (userAccount),
     INDEX idx_userName (userName)
 ) comment '用户' collate = utf8mb4_unicode_ci;
+
+create table if not exists picture
+(
+    id bigint primary key,
+    url varchar(2048) not null,
+    name varchar(128) not null,
+    introduction varchar(800),
+    category varchar(64),
+    tags varchar(1024) default '[]',
+    picSize bigint not null,
+    picWidth int not null,
+    picHeight int not null,
+    picScale double,
+    picFormat varchar(16),
+    fileHash varchar(64),
+    perceptualHash varchar(16),
+    picColor varchar(16),
+    spaceId bigint,
+    userId bigint not null,
+    reviewStatus int not null default 0,
+    reviewMessage varchar(512),
+    reviewerId bigint,
+    reviewTime datetime,
+    shareCode varchar(64),
+    shareExpireTime datetime,
+    viewCount bigint not null default 0,
+    downloadCount bigint not null default 0,
+    createTime datetime not null default CURRENT_TIMESTAMP,
+    editTime datetime not null default CURRENT_TIMESTAMP,
+    updateTime datetime not null default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
+    isDelete tinyint not null default 0,
+    index idx_public_review (spaceId,reviewStatus,isDelete,createTime),
+    index idx_user (userId),
+    index idx_hash (fileHash),
+    index idx_perceptual (perceptualHash),
+    unique key uk_share (shareCode)
+) collate = utf8mb4_unicode_ci;
+
+create table if not exists space
+(
+    id bigint primary key,
+    spaceName varchar(128) not null,
+    spaceLevel int not null default 0,
+    spaceType int not null default 0,
+    userId bigint not null,
+    maxSize bigint not null,
+    maxCount bigint not null,
+    totalSize bigint not null default 0,
+    totalCount bigint not null default 0,
+    createTime datetime not null default CURRENT_TIMESTAMP,
+    updateTime datetime not null default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
+    isDelete tinyint not null default 0,
+    index idx_space_owner (userId)
+) collate = utf8mb4_unicode_ci;
+
+create table if not exists space_user
+(
+    id bigint primary key,
+    spaceId bigint not null,
+    userId bigint not null,
+    spaceRole varchar(16) not null default 'viewer',
+    createTime datetime not null default CURRENT_TIMESTAMP,
+    unique key uk_space_user (spaceId,userId),
+    index idx_member (userId)
+) collate = utf8mb4_unicode_ci;

@@ -67,6 +67,26 @@ public class PictureVO implements Serializable {
      */
     private String picFormat;
 
+    private String picColor;
+
+    private Long spaceId;
+
+    private Integer reviewStatus;
+
+    private String reviewMessage;
+
+    private Long reviewerId;
+
+    private Date reviewTime;
+
+    private String shareCode;
+
+    private Date shareExpireTime;
+
+    private Long viewCount;
+
+    private Long downloadCount;
+
     /**
      * 用户 id
      */
@@ -117,8 +137,11 @@ public class PictureVO implements Serializable {
         }
         PictureVO pictureVO = new PictureVO();
         BeanUtils.copyProperties(picture, pictureVO);
+        pictureVO.setShareCode(null);
         // 类型不同，需要转换
-        pictureVO.setTags(JSONUtil.toList(picture.getTags(), String.class));
+        pictureVO.setTags(picture.getTags() == null || picture.getTags().trim().isEmpty()
+                ? java.util.Collections.emptyList()
+                : JSONUtil.toList(picture.getTags(), String.class));
         return pictureVO;
     }
 }

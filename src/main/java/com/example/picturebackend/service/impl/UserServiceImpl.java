@@ -39,10 +39,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         if (StrUtil.hasBlank(userAccount, userPassword, checkPassword)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数不能为空");
         }
-        if (userAccount.length() < 4) {
+        if (!userAccount.matches("[A-Za-z0-9_]{4,32}")) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户账号过短");
         }
-        if (userPassword.length() < 8 || checkPassword.length() < 8) {
+        if (userPassword.length() < 8 || checkPassword.length() < 8 || userPassword.length()>72) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户密码过短");
         }
         if (!userPassword.equals(checkPassword)) {
@@ -76,9 +76,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
      */
     @Override
     public String getEncryptPassword(String userPassword) {
-        // 盐值，混淆密码
-        final String SALT = "YuanXin";
-        return DigestUtils.md5DigestAsHex((SALT + userPassword).getBytes());
+        return new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().encode(userPassword);
+    }
+
+    @Override
+    public boolean isAdmin(User user) {
+        return user != null && UserRoleEnum.ADMIN.getValue().equals(user.getUserRole());
     }
 
     @Override
@@ -90,21 +93,24 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         if (userAccount.length() < 4) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "账号错误");
         }
-        if (userPassword.length() < 8) {
+        if (userPassword.length() < 8 || userPassword.length()>72) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "密码错误");
         }
         // 2. 加密
-        String encryptPassword = getEncryptPassword(userPassword);
+        String legacyPassword = DigestUtils.md5DigestAsHex(("YuanXin"+userPassword).getBytes(java.nio.charset.StandardCharsets.UTF_8));
         // 查询用户是否存在
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("userAccount", userAccount);
-        queryWrapper.eq("userPassword", encryptPassword);
         User user = this.baseMapper.selectOne(queryWrapper);
         // 用户不存在
-        if (user == null) {
+        if (user == null || !(user.getUserPassword().startsWith("$2")
+                ? new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().matches(userPassword,user.getUserPassword())
+                : java.security.MessageDigest.isEqual(legacyPassword.getBytes(java.nio.charset.StandardCharsets.UTF_8),user.getUserPassword().getBytes(java.nio.charset.StandardCharsets.UTF_8)))) {
             log.info("user login failed, userAccount cannot match userPassword");
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户不存在或密码错误");
         }
+        if(!user.getUserPassword().startsWith("$2")){user.setUserPassword(getEncryptPassword(userPassword));updateById(user);}
+        if(request.getSession(false)!=null)request.getSession(false).invalidate();
         // 3. 记录用户的登录态
         request.getSession().setAttribute(USER_LOGIN_STATE, user);
         return this.getLoginUserVO(user);
@@ -145,7 +151,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "未登录");
         }
         // 移除登录态
-        request.getSession().removeAttribute(USER_LOGIN_STATE);
+        request.getSession().invalidate();
         return true;
     }
 
@@ -185,7 +191,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         queryWrapper.like(StrUtil.isNotBlank(userAccount), "userAccount", userAccount);
         queryWrapper.like(StrUtil.isNotBlank(userName), "userName", userName);
         queryWrapper.like(StrUtil.isNotBlank(userProfile), "userProfile", userProfile);
-        queryWrapper.orderBy(StrUtil.isNotEmpty(sortField), sortOrder.equals("ascend"), sortField);
+        List<String> allowedSortFields = java.util.Arrays.asList("id", "createTime", "updateTime", "userName", "userAccount");
+        queryWrapper.orderBy(allowedSortFields.contains(sortField), "ascend".equals(sortOrder), sortField);
         return queryWrapper;
     }
 

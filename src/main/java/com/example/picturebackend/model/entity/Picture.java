@@ -65,6 +65,32 @@ public class Picture implements Serializable {
      */
     private String picFormat;
 
+    private String fileHash;
+    private String perceptualHash;
+
+    private String picColor;
+
+    private Long spaceId;
+
+    private Integer reviewStatus;
+
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private String reviewMessage;
+
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private Long reviewerId;
+
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private Date reviewTime;
+
+    private String shareCode;
+
+    private Date shareExpireTime;
+
+    private Long viewCount;
+
+    private Long downloadCount;
+
     /**
      * 创建用户 id
      */

@@ -15,6 +15,7 @@ import com.qcloud.cos.utils.IOUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletResponse;
@@ -24,6 +25,7 @@ import java.io.IOException;
  * 文件控制器
  */
 @RestController
+@ConditionalOnProperty(name = "app.storage", havingValue = "cos")
 @RequestMapping("/file")
 @Slf4j
 public class FileController {

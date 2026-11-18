@@ -9,6 +9,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 @Configuration
 @ConfigurationProperties(prefix = "cos.client")
@@ -41,6 +42,7 @@ public class CosClientConfig {
     private String bucket;
 
     @Bean
+    @ConditionalOnProperty(name = "app.storage", havingValue = "cos")
     public COSClient cosClient() {
         // 初始化用户身份信息(secretId, secretKey)
         COSCredentials cred = new BasicCOSCredentials(secretId, secretKey);
