@@ -22,6 +22,7 @@ import javax.servlet.http.HttpSession;
 @RequiredArgsConstructor
 public class CollaborationConfig implements WebSocketConfigurer {
     private final PictureService pictures;private final UserService users;private final PictureAccess access;private final CollaborationLocks locks;private final ObjectMapper json;
+    private final SpaceDomainService spaces;
     @Value("${app.cors.allowed-origins}")private String origins;
     private final Map<Long,Set<WebSocketSession>> rooms=new ConcurrentHashMap<>();
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry){
@@ -32,7 +33,7 @@ public class CollaborationConfig implements WebSocketConfigurer {
                     User user=users.getLoginUser(servlet.getServletRequest());
                     Long id=Long.valueOf(UriComponentsBuilder.fromUri(request.getURI()).build().getQueryParams().getFirst("pictureId"));
                     Picture p=pictures.getById(id);access.edit(p,user);
-                    if(p.getSpaceId()==null)return false;
+                    if(p.getSpaceId()==null || !Integer.valueOf(1).equals(spaces.require(p.getSpaceId()).getSpaceType()))return false;
                     attrs.put("pictureId",id);attrs.put("userId",user.getId());attrs.put("httpSession",servlet.getServletRequest().getSession());return true;
                 }catch(Exception e){return false;}
             }

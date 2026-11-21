@@ -21,6 +21,7 @@ import com.example.picturebackend.model.tdo.picture.PictureReviewRequest;
 import com.example.picturebackend.model.tdo.picture.PictureUploadRequest;
 import com.example.picturebackend.model.vo.PictureVO;
 import com.example.picturebackend.service.PictureService;
+import com.example.picturebackend.service.PublicGalleryCache;
 import com.example.picturebackend.service.UserService;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -46,6 +47,7 @@ public class PictureController {
     @Resource private SpaceDomainService spaceService;
     @Resource private com.example.picturebackend.domain.space.PictureAccess access;
     @Resource private com.example.picturebackend.domain.space.CollaborationLocks locks;
+    @Resource private PublicGalleryCache publicGalleryCache;
 
     /** Upload/create or replace an image. Members' changes return to the moderation queue. */
     @PostMapping("/upload")
@@ -102,6 +104,7 @@ public class PictureController {
             pictureService.fillReviewParams(picture, loginUser);
             boolean saved = oldPicture == null ? pictureService.save(picture) : pictureService.updateById(picture);
             ThrowUtils.throwIf(!saved, ErrorCode.OPERATION_ERROR, "图片信息保存失败");
+            if (picture.getSpaceId() == null) publicGalleryCache.invalidateAfterCommit();
             return ResultUtils.success(pictureService.getPictureVO(picture));
     }
 
@@ -112,8 +115,9 @@ public class PictureController {
         queryRequest.setSpaceId(null);
         queryRequest.setIncludeAllSpaces(false);
         queryRequest.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
-        return listPage(queryRequest);
+        return ResultUtils.success(publicGalleryCache.get(queryRequest, () -> pageData(queryRequest)));
     }
+
 
     /** Current member's uploads, including pending or rejected items. */
     @PostMapping("/my/list/page/vo")
@@ -137,6 +141,10 @@ public class PictureController {
     }
 
     private BaseResponse<Page<PictureVO>> listPage(PictureQueryRequest queryRequest) {
+        return ResultUtils.success(pageData(queryRequest));
+    }
+
+    private Page<PictureVO> pageData(PictureQueryRequest queryRequest) {
         int current = Math.max(1, queryRequest.getCurrent());
         int pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, queryRequest.getPageSize()));
         queryRequest.setCurrent(current);
@@ -145,7 +153,7 @@ public class PictureController {
         Page<Picture> picturePage = pictureService.page(new Page<>(current, pageSize), queryWrapper);
         Page<PictureVO> resultPage = new Page<>(current, pageSize, picturePage.getTotal());
         resultPage.setRecords(pictureService.getPictureVOList(picturePage.getRecords()));
-        return ResultUtils.success(resultPage);
+        return resultPage;
     }
 
     @GetMapping("/get/vo")
@@ -158,6 +166,29 @@ public class PictureController {
         pictureService.update(new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<Picture>()
                 .eq("id", id).setSql("viewCount = viewCount + 1"));
         return ResultUtils.success(pictureService.getPictureVO(picture));
+    }
+
+    @GetMapping("/tag_category")
+    public BaseResponse<java.util.Map<String, java.util.List<String>>> listTagCategory() {
+        java.util.List<Picture> pictures = pictureService.list(new QueryWrapper<Picture>()
+                .select("category", "tags")
+                .isNull("spaceId")
+                .eq("reviewStatus", PictureReviewStatusEnum.PASS.getValue())
+                .and(query -> query.isNotNull("category").or().isNotNull("tags"))
+                .last("LIMIT 5000"));
+        java.util.Set<String> categories = new java.util.TreeSet<>();
+        java.util.Set<String> tags = new java.util.TreeSet<>();
+        for (Picture picture : pictures) {
+            if (StringUtils.hasText(picture.getCategory())) categories.add(picture.getCategory().trim());
+            if (StringUtils.hasText(picture.getTags())) {
+                try { tags.addAll(JSONUtil.toList(picture.getTags(), String.class)); }
+                catch (Exception ignored) { }
+            }
+        }
+        java.util.Map<String, java.util.List<String>> result = new java.util.LinkedHashMap<>();
+        result.put("categoryList", new java.util.ArrayList<>(categories));
+        result.put("tagList", new java.util.ArrayList<>(tags));
+        return ResultUtils.success(result);
     }
 
     @PostMapping("/edit")
@@ -176,7 +207,9 @@ public class PictureController {
         picture.setEditTime(new Date());
         validateMetadata(picture);
         pictureService.fillReviewParams(picture, loginUser);
-        return ResultUtils.success(pictureService.updateById(picture));
+        boolean updated = pictureService.updateById(picture);
+        if (updated && picture.getSpaceId() == null) publicGalleryCache.invalidateAfterCommit();
+        return ResultUtils.success(updated);
     }
 
     @PostMapping("/review")
@@ -184,6 +217,7 @@ public class PictureController {
     public BaseResponse<Boolean> reviewPicture(@RequestBody PictureReviewRequest reviewRequest,
                                                HttpServletRequest request) {
         pictureService.doPictureReview(reviewRequest, userService.getLoginUser(request));
+        publicGalleryCache.invalidateAfterCommit();
         return ResultUtils.success(true);
     }
 
@@ -199,6 +233,7 @@ public class PictureController {
         checkPictureEditPermission(picture, user);
         spaceService.adjustUsage(picture.getSpaceId(), -1, -(picture.getPicSize() == null ? 0 : picture.getPicSize()));
         ThrowUtils.throwIf(!pictureService.removeById(picture.getId()), ErrorCode.OPERATION_ERROR);
+        if (picture.getSpaceId() == null) publicGalleryCache.invalidateAfterCommit();
         return ResultUtils.success(true);
     }
 
@@ -209,19 +244,26 @@ public class PictureController {
                 || body.getIds().size() > 100, ErrorCode.PARAMS_ERROR, "一次最多编辑 100 张图片");
         User user = userService.getLoginUser(request);
         int count = 0;
+        boolean publicChanged = false;
         for (Long id : body.getIds()) {
             Picture picture = pictureService.getById(id);
             ThrowUtils.throwIf(picture == null, ErrorCode.NOT_FOUND_ERROR);
             checkPictureEditPermission(picture, user);
             if (body.getCategory() != null) picture.setCategory(trimToNull(body.getCategory()));
             if (body.getTags() != null) picture.setTags(normalizeTags(body.getTags()));
+            if (StringUtils.hasText(body.getNameRule())) {
+                picture.setName(body.getNameRule().trim().replace("{序号}", String.valueOf(count + 1)));
+            }
             validateMetadata(picture);
             pictureService.fillReviewParams(picture, user);
             ThrowUtils.throwIf(!pictureService.updateById(picture), ErrorCode.OPERATION_ERROR);
+            publicChanged |= picture.getSpaceId() == null;
             count++;
         }
+        if (publicChanged) publicGalleryCache.invalidateAfterCommit();
         return ResultUtils.success(count);
     }
+
 
     @PostMapping("/share")
     public BaseResponse<String> createShare(@RequestBody DeleteRequest body, HttpServletRequest request) {
@@ -329,5 +371,6 @@ public class PictureController {
         private List<Long> ids;
         private String category;
         private List<String> tags;
+        private String nameRule;
     }
 }

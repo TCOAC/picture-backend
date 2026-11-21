@@ -18,11 +18,14 @@ public class PictureImportController {
     @Data public static class ImportRequest {private String url;private List<String> urls;private Long spaceId;private String name;}
     @PostMapping("/url")
     public BaseResponse<?> single(@RequestBody ImportRequest body,HttpServletRequest request){
+        ThrowUtils.throwIf(body == null || body.getUrl() == null, ErrorCode.PARAMS_ERROR, "请输入图片地址");
         users.getLoginUser(request);
         return pictures.uploadPicture(new ByteArrayMultipartFile(fetcher.fetch(body.getUrl(),2*1024*1024),"import.png"),null,body.getSpaceId(),body.getName(),null,null,null,request);
     }
+
     @PostMapping("/batch")
     public BaseResponse<List<Map<String,Object>>> batch(@RequestBody ImportRequest body,HttpServletRequest request){
+        ThrowUtils.throwIf(body == null, ErrorCode.PARAMS_ERROR);
         ThrowUtils.throwIf(!users.isAdmin(users.getLoginUser(request)),ErrorCode.NO_AUTH_ERROR,"批量采集仅限管理员");
         List<String> urls=body.getUrls();
         if(urls==null && body.getUrl()!=null){
@@ -36,4 +39,5 @@ public class PictureImportController {
             catch(BusinessException e){item.put("success",false);item.put("message",e.getMessage());}result.add(item);
         }return ResultUtils.success(result);
     }
+
 }

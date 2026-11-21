@@ -54,10 +54,17 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                     .or().like("introduction", searchText));
         }
         queryWrapper.eq(StrUtil.isNotBlank(request.getCategory()), "category", request.getCategory());
+        queryWrapper.like(StrUtil.isNotBlank(request.getName()), "name", request.getName());
+        queryWrapper.like(StrUtil.isNotBlank(request.getIntroduction()), "introduction", request.getIntroduction());
         queryWrapper.ge(request.getMinWidth()!=null,"picWidth",request.getMinWidth());
         queryWrapper.ge(request.getMinHeight()!=null,"picHeight",request.getMinHeight());
+        queryWrapper.le(request.getMaxWidth()!=null,"picWidth",request.getMaxWidth());
+        queryWrapper.le(request.getMaxHeight()!=null,"picHeight",request.getMaxHeight());
+        queryWrapper.ge(request.getMinSize()!=null,"picSize",request.getMinSize());
         queryWrapper.le(request.getMaxSize()!=null,"picSize",request.getMaxSize());
         queryWrapper.eq(StrUtil.isNotBlank(request.getPicFormat()),"picFormat",request.getPicFormat());
+        queryWrapper.ge(request.getStartEditTime()!=null,"editTime",request.getStartEditTime());
+        queryWrapper.le(request.getEndEditTime()!=null,"editTime",request.getEndEditTime());
         queryWrapper.like(StrUtil.isNotBlank(request.getTag()), "tags", request.getTag());
         queryWrapper.eq(request.getUserId() != null, "userId", request.getUserId());
         if (!Boolean.TRUE.equals(request.getIncludeAllSpaces())) {

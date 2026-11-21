@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.io.Serializable;
+import java.util.Date;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
@@ -13,10 +14,17 @@ public class PictureQueryRequest extends PageRequest implements Serializable {
     private String searchText;
 
     private String category;
+    private String name;
+    private String introduction;
     private Integer minWidth;
     private Integer minHeight;
+    private Integer maxWidth;
+    private Integer maxHeight;
+    private Long minSize;
     private Long maxSize;
     private String picFormat;
+    private Date startEditTime;
+    private Date endEditTime;
 
     private String tag;
 

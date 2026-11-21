@@ -7,6 +7,12 @@ server:
 spring:
   application:
     name: picture-backend
+  session:
+    store-type: ${SESSION_STORE_TYPE:none}
+  redis:
+    host: ${REDIS_HOST:127.0.0.1}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
   # 激活 local 环境配置（读取 application-local.yml）
   profiles:
     active: local
@@ -49,6 +55,8 @@ knife4j:
 
 # Comma-separated browser origins. Keep this explicit because sessions use cookies.
 app:
+  cache:
+    redis-enabled: ${APP_CACHE_REDIS_ENABLED:false}
   storage: ${APP_STORAGE:local}
   upload-dir: ${APP_UPLOAD_DIR:./data/uploads}
   cors:

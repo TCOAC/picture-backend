@@ -92,13 +92,54 @@ class GalleryAuthorizationTests {
     }
     @Test void publicModerationAndEditingResetReviewMetadata()throws Exception{
         User owner=user("user"),admin=user("admin");MockHttpSession s=session(owner);JsonNode p=upload(s,null);String id=p.get("id").asText();
+        String ownerFilter = "{\"userId\":\"" + owner.getId() + "\"}";
+        mvc.perform(post("/picture/list/page/vo").contentType(MediaType.APPLICATION_JSON).content(ownerFilter))
+            .andExpect(jsonPath("$.data.total").value(0));
         mvc.perform(post("/picture/review").session(session(admin)).contentType(MediaType.APPLICATION_JSON)
             .content("{\"id\":\""+id+"\",\"reviewStatus\":1,\"reviewMessage\":\"approved\"}"))
             .andExpect(jsonPath("$.code").value(0));
+        mvc.perform(post("/picture/list/page/vo").contentType(MediaType.APPLICATION_JSON).content(ownerFilter))
+            .andExpect(jsonPath("$.data.total").value(1));
         mvc.perform(post("/picture/edit").session(s).contentType(MediaType.APPLICATION_JSON).content("{\"id\":\""+id+"\",\"name\":\"changed\"}"))
             .andExpect(jsonPath("$.code").value(0));
         Picture stored=pictures.getById(id);assertEquals(0,stored.getReviewStatus());assertNull(stored.getReviewerId());assertNull(stored.getReviewTime());assertNull(stored.getReviewMessage());
-        mvc.perform(post("/picture/list/page/vo").contentType(MediaType.APPLICATION_JSON).content("{\"userId\":\""+owner.getId()+"\"}"))
+        mvc.perform(post("/picture/list/page/vo").contentType(MediaType.APPLICATION_JSON).content(ownerFilter))
             .andExpect(jsonPath("$.data.total").value(0));
+    }
+
+    @Test
+    @org.springframework.transaction.annotation.Transactional
+    void tagCategoryOnlyIncludesApprovedPublicPictures() throws Exception {
+        User admin = user("admin");
+        User owner = user("user");
+        MockHttpSession adminSession = session(admin);
+        MockHttpSession ownerSession = session(owner);
+        Space privateSpace = spaces.create("Private tags", 0, owner);
+
+        mvc.perform(multipart("/picture/upload").file(png(0x336699))
+                .param("category", "Visible category")
+                .param("tags", "[\"Visible tag\"]")
+                .session(adminSession))
+                .andExpect(jsonPath("$.code").value(0));
+        mvc.perform(multipart("/picture/upload").file(png(0x669933))
+                .param("category", "Pending category")
+                .param("tags", "[\"Pending tag\"]")
+                .session(ownerSession))
+                .andExpect(jsonPath("$.code").value(0));
+        mvc.perform(multipart("/picture/upload").file(png(0x993366))
+                .param("spaceId", privateSpace.getId().toString())
+                .param("category", "Private category")
+                .param("tags", "[\"Private tag\"]")
+                .session(ownerSession))
+                .andExpect(jsonPath("$.code").value(0));
+
+        String response = mvc.perform(get("/picture/tag_category"))
+                .andExpect(jsonPath("$.code").value(0))
+                .andReturn().getResponse().getContentAsString();
+        JsonNode data = json.readTree(response).get("data");
+        assertTrue(data.get("categoryList").toString().contains("Visible category"));
+        assertTrue(data.get("tagList").toString().contains("Visible tag"));
+        assertFalse(data.toString().contains("Pending"));
+        assertFalse(data.toString().contains("Private"));
     }
 }
