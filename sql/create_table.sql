@@ -7,7 +7,7 @@ create table if not exists user
     userName      varchar(256)                       null comment '用户昵称',
     userAvatar    varchar(1024)                      null comment '用户头像',
     userProfile   varchar(512)                       null comment '用户简介',
-    userRole      varchar(256) default 'user'        not null comment '用户角色：user/admin/vip',
+    userRole      varchar(256) default 'user'        not null comment '用户角色：user/admin',
     editTime      datetime default CURRENT_TIMESTAMP not null comment '编辑时间',
     createTime    datetime default CURRENT_TIMESTAMP not null comment '创建时间',
     updateTime    datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
@@ -19,7 +19,7 @@ create table if not exists user
     inviteUser    bigint                             null comment '邀请用户 id',
     UNIQUE KEY uk_userAccount (userAccount),
     INDEX idx_userName (userName)
-) comment '用户' collate = utf8mb4_unicode_ci;
+) engine = InnoDB comment '用户' collate = utf8mb4_unicode_ci;
 
 create table if not exists picture
 (
@@ -85,3 +85,15 @@ create table if not exists space_user
     unique key uk_space_user (spaceId,userId),
     index idx_member (userId)
 ) collate = utf8mb4_unicode_ci;
+
+create table if not exists vip_code
+(
+    codeHash char(64) primary key,
+    durationDays int not null,
+    createdBy bigint not null,
+    createTime datetime not null default CURRENT_TIMESTAMP,
+    redeemedBy bigint null,
+    redeemedAt datetime null,
+    index idx_vip_code_issuer (createdBy, createTime),
+    index idx_vip_code_redeemer (redeemedBy)
+) engine = InnoDB collate = utf8mb4_unicode_ci;

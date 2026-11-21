@@ -11,6 +11,7 @@ Spring Boot 2.7 / Java 8 字节码，MyBatis-Plus 与 MySQL。公共图片经过
 - 私有媒体读取授权、7 天分享链接和撤销、下载计数。
 - 图片校验、内容 SHA-256 去重存储、缩略图、主色与感知哈希索引、颜色/相似检索、旋转/翻转。
 - 团队图片 WebSocket 协作锁与编辑通知；AI 图像编辑对接 OpenAI Images Edits 兼容接口。
+- 管理员生成一次性会员兑换码，用户兑换后按剩余期限累加会员天数；并发兑换由数据库锁和事务保证。
 - 公网 URL 下载启用 DNS 公网地址校验、关闭重定向并限制文件尺寸。
 
 ## 本地运行
@@ -29,7 +30,7 @@ COS 模式需设置 `APP_STORAGE=cos` 以及 `COS_HOST`、`COS_SECRET_ID`、`COS
 
 ## 数据库升级
 
-新库执行 `sql/create_table.sql`。已有图库需备份数据库后，按 [`sql/upgrade_existing_picture.sql`](sql/upgrade_existing_picture.sql) 为原图片表补列并创建空间表。新表脚本不会自动修改已有表。
+新库执行 `sql/create_table.sql`。已有图库需备份数据库后，按 [`sql/upgrade_existing_picture.sql`](sql/upgrade_existing_picture.sql) 为原图片表补列并创建空间表，再执行 [`sql/upgrade_vip_codes.sql`](sql/upgrade_vip_codes.sql) 创建兑换码表。新表脚本不会自动修改已有表。
 
 ## 验证
 

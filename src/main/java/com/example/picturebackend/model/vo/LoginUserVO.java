@@ -5,6 +5,7 @@ import lombok.Data;
 import org.springframework.beans.BeanUtils;
 
 import java.io.Serializable;
+import java.util.Date;
 
 /**
  * 脱敏后的登录用户信息（不返回密码等敏感字段）
@@ -41,6 +42,8 @@ public class LoginUserVO implements Serializable {
      * 用户角色：user/admin
      */
     private String userRole;
+
+    private Date vipExpireTime;
 
     private static final long serialVersionUID = 1L;
 

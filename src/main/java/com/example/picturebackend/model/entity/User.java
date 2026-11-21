@@ -47,7 +47,7 @@ public class User {
     private String userProfile;
 
     /**
-     * 用户角色：user/admin/vip
+     * 用户角色：user/admin；会员状态由 vipExpireTime 表示
      */
     private String userRole;
 

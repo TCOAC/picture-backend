@@ -15,9 +15,12 @@ import com.example.picturebackend.model.tdo.user.UserAddRequest;
 import com.example.picturebackend.model.tdo.user.UserQueryRequest;
 import com.example.picturebackend.model.tdo.user.UserRegisterRequest;
 import com.example.picturebackend.model.tdo.user.UserUpdateRequest;
+import com.example.picturebackend.model.tdo.user.VipCodeIssueRequest;
+import com.example.picturebackend.model.tdo.user.VipExchangeRequest;
 import com.example.picturebackend.model.vo.LoginUserVO;
 import com.example.picturebackend.model.vo.UserVO;
 import com.example.picturebackend.service.UserService;
+import com.example.picturebackend.service.VipCodeService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,6 +34,22 @@ public class UserController {
 
     @Resource
     private UserService userService;
+
+    @Resource
+    private VipCodeService vipCodeService;
+
+    @PostMapping("/vip/issue")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<String> issueVipCode(@RequestBody VipCodeIssueRequest body, HttpServletRequest request) {
+        ThrowUtils.throwIf(body == null || body.getDurationDays() == null, ErrorCode.PARAMS_ERROR);
+        return ResultUtils.success(vipCodeService.issue(body.getDurationDays(), userService.getLoginUser(request).getId()));
+    }
+
+    @PostMapping("/exchange/vip")
+    public BaseResponse<LoginUserVO> exchangeVip(@RequestBody VipExchangeRequest body, HttpServletRequest request) {
+        ThrowUtils.throwIf(body == null, ErrorCode.PARAMS_ERROR);
+        return ResultUtils.success(vipCodeService.redeem(body.getVipCode(), userService.getLoginUser(request).getId()));
+    }
 
     /**
      * 用户注册

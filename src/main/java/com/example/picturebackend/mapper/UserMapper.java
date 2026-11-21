@@ -2,6 +2,8 @@ package com.example.picturebackend.mapper;
 
 import com.example.picturebackend.model.entity.User;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 /**
 * @author w
@@ -10,7 +12,8 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 * @Entity com.example.picturebackend.model.entity.User
 */
 public interface UserMapper extends BaseMapper<User> {
-
+    @Select("SELECT * FROM user WHERE id = #{id} AND isDelete = 0 FOR UPDATE")
+    User lockById(@Param("id") Long id);
 }
 
 
