@@ -10,7 +10,7 @@ Spring Boot 2.7 / Java 8 字节码，MyBatis-Plus 与 MySQL。公共图片经过
 - 私有/团队空间、额度、成员角色、配额原子预留，以及分类、标签、尺寸、用户和空间容量分析。
 - 私有媒体读取授权、7 天分享链接和撤销、下载计数。
 - 图片校验、内容 SHA-256 去重存储、缩略图、主色与感知哈希索引、颜色/相似检索、旋转/翻转。
-- 团队图片 WebSocket 协作锁与编辑通知；AI 图像编辑对接 OpenAI Images Edits 兼容接口。
+- 团队图片 WebSocket 协作锁与编辑通知；AI 图像编辑与透明遮罩扩图对接 OpenAI Images Edits 兼容接口。
 - 管理员生成一次性会员兑换码，用户兑换后按剩余期限累加会员天数；并发兑换由数据库锁和事务保证。
 - 公网 URL 下载启用 DNS 公网地址校验、关闭重定向并限制文件尺寸。
 
@@ -24,7 +24,7 @@ mvn spring-boot:run
 
 接口地址为 `http://localhost:8123/api`。上传文件写到 `./data/uploads`；媒体 URL 仍经过应用鉴权。前端开发服务器通过 Vite 将 `/api` 与 `/api/ws` 代理到该地址。首次将用户升级为站点管理员时，先正常注册，再由数据库管理员执行 `UPDATE user SET userRole='admin' WHERE userAccount='your-account';`。
 
-COS 模式需设置 `APP_STORAGE=cos` 以及 `COS_HOST`、`COS_SECRET_ID`、`COS_SECRET_KEY`、`COS_REGION`、`COS_BUCKET`。AI 图片编辑需要设置 `AI_IMAGE_API_URL`、`AI_IMAGE_API_KEY`、`AI_IMAGE_MODEL`；模型服务不配置时此接口明确返回不可用。
+COS 模式需设置 `APP_STORAGE=cos` 以及 `COS_HOST`、`COS_SECRET_ID`、`COS_SECRET_KEY`、`COS_REGION`、`COS_BUCKET`。AI 图片编辑和扩图需要设置 `AI_IMAGE_API_URL`、`AI_IMAGE_API_KEY`、`AI_IMAGE_MODEL`；模型服务需支持 Images Edits 的 `image` 与 `mask` multipart 字段。模型服务不配置时接口明确返回不可用。
 
 本地运行默认使用进程内会话和 Caffeine 缓存。需要共享会话与二级缓存时，启动 Redis 并设置 `REDIS_HOST`、`REDIS_PORT`、`REDIS_PASSWORD`、`SESSION_STORE_TYPE=redis`、`APP_CACHE_REDIS_ENABLED=true`。Docker Compose 已包含 Redis 服务，需在 `.env` 中分别设置数据库和 Redis 密码。
 
