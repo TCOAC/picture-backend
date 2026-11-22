@@ -3,6 +3,7 @@ package com.example.picturebackend;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.example.picturebackend.constant.UserConstant;
 import com.example.picturebackend.domain.space.SpaceDomainService;
+import com.example.picturebackend.exception.BusinessException;
 import com.example.picturebackend.mapper.SpaceMapper;
 import com.example.picturebackend.mapper.SpaceUserMapper;
 import com.example.picturebackend.model.entity.*;
@@ -20,6 +21,12 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -56,6 +63,55 @@ class GalleryAuthorizationTests {
         if(space!=null)req.param("spaceId",space.toString());
         String response=mvc.perform(req.session(session)).andExpect(status().isOk()).andExpect(jsonPath("$.code").value(0)).andReturn().getResponse().getContentAsString();
         return json.readTree(response).get("data");
+    }
+    @Test void spaceCreationAllowsOneOfEachTypeAndSetsExpectedQuotas() throws Exception {
+        User owner = user("user");
+        User admin = user("admin");
+        Space personal = spaces.create("Personal", 0, owner);
+        Space team = spaces.create("Team", 1, owner);
+        assertEquals(100L, personal.getMaxCount());
+        assertEquals(100L * 1024 * 1024, personal.getMaxSize());
+        assertThrows(BusinessException.class, () -> spaces.create("Second personal", 0, owner));
+        assertThrows(BusinessException.class, () -> spaces.create("Second team", 1, owner));
+
+        mvc.perform(post("/space/edit").session(session(admin)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"id\":\"" + team.getId() + "\",\"spaceLevel\":1}"))
+                .andExpect(jsonPath("$.code").value(0));
+        assertEquals(1000L * 1024 * 1024, spaces.require(team.getId()).getMaxSize());
+        mvc.perform(post("/space/edit").session(session(admin)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"id\":\"" + team.getId() + "\",\"spaceLevel\":2}"))
+                .andExpect(jsonPath("$.code").value(0));
+        assertEquals(10000L * 1024 * 1024, spaces.require(team.getId()).getMaxSize());
+    }
+
+    @Test void simultaneousSpaceCreationKeepsOneTeamPerOwner() throws Exception {
+        User owner = user("user");
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicInteger created = new AtomicInteger();
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Runnable task = () -> {
+                try {
+                    start.await();
+                    spaces.create("Team", 1, owner);
+                    created.incrementAndGet();
+                } catch (BusinessException expected) {
+                    // The other request created this owner's team first.
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+            };
+            Future<?> first = executor.submit(task);
+            Future<?> second = executor.submit(task);
+            start.countDown();
+            first.get(10, TimeUnit.SECONDS);
+            second.get(10, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals(1, created.get());
+        assertEquals(1, spaceMapper.selectCount(new QueryWrapper<Space>()
+                .eq("userId", owner.getId()).eq("spaceType", 1)));
     }
     @Test void teamMembersCanBeInvitedByAccountAndAreRemovedWithSpace() throws Exception {
         User owner = user("user");

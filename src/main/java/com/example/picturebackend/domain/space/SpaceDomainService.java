@@ -15,6 +15,7 @@ import java.util.*;
 public class SpaceDomainService {
     private final SpaceMapper spaces;
     private final SpaceUserMapper members;
+    private final UserMapper users;
 
     public boolean isAdmin(User user) {
         return user != null && "admin".equals(user.getUserRole());
@@ -44,25 +45,25 @@ public class SpaceDomainService {
         ThrowUtils.throwIf(!allowed, ErrorCode.NO_AUTH_ERROR, "无空间操作权限");
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Space create(String name, int type, User user) {
         ThrowUtils.throwIf(name == null || name.trim().isEmpty() || name.length() > 128,
                 ErrorCode.PARAMS_ERROR, "空间名称长度为 1-128");
         ThrowUtils.throwIf(type != 0 && type != 1, ErrorCode.PARAMS_ERROR);
-        ThrowUtils.throwIf(user==null,ErrorCode.NOT_LOGIN_ERROR);
-        if(type==0)ThrowUtils.throwIf(spaces.selectCount(new QueryWrapper<Space>().eq("userId",user.getId()).eq("spaceType",0))>0,
-            ErrorCode.OPERATION_ERROR,"每位用户只能创建一个个人空间");
-        ThrowUtils.throwIf(spaces.selectCount(new QueryWrapper<Space>().eq("userId",user.getId()))>=20,
-            ErrorCode.OPERATION_ERROR,"每人最多创建 20 个空间");
+        ThrowUtils.throwIf(user == null || user.getId() == null, ErrorCode.NOT_LOGIN_ERROR);
+        ThrowUtils.throwIf(users.lockById(user.getId()) == null, ErrorCode.NOT_LOGIN_ERROR);
+        ThrowUtils.throwIf(spaces.selectCount(new QueryWrapper<Space>()
+                        .eq("userId", user.getId()).eq("spaceType", type)) > 0,
+                ErrorCode.OPERATION_ERROR, "每位用户每类空间只能创建一个");
         Space space = new Space();
         space.setSpaceName(name.trim()); space.setSpaceType(type); space.setSpaceLevel(0);
         space.setUserId(user.getId()); space.setMaxCount(100L); space.setMaxSize(100L * 1024 * 1024);
         space.setTotalCount(0L); space.setTotalSize(0L);
-        spaces.insert(space);
+        ThrowUtils.throwIf(spaces.insert(space) != 1, ErrorCode.OPERATION_ERROR, "创建空间失败");
         if (type == 1) {
             SpaceUser member = new SpaceUser();
             member.setSpaceId(space.getId()); member.setUserId(user.getId()); member.setSpaceRole("admin");
-            members.insert(member);
+            ThrowUtils.throwIf(members.insert(member) != 1, ErrorCode.OPERATION_ERROR, "创建团队成员失败");
         }
         return space;
     }

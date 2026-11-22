@@ -68,7 +68,7 @@ public class SpaceController {
         if (body.getSpaceLevel() != null) {
             ThrowUtils.throwIf(!spaces.isAdmin(user), ErrorCode.NO_AUTH_ERROR, "空间等级由管理员配置");
             int level=body.getSpaceLevel(); ThrowUtils.throwIf(level<0 || level>2, ErrorCode.PARAMS_ERROR);
-            space.setSpaceLevel(level); space.setMaxSize((level==0?100L:level==1?1024L:10240L)*1024*1024);
+            space.setSpaceLevel(level); space.setMaxSize((level==0?100L:level==1?1000L:10000L)*1024*1024);
             space.setMaxCount(level==0?100L:level==1?1000L:10000L);
             ThrowUtils.throwIf(space.getTotalSize()>space.getMaxSize() || space.getTotalCount()>space.getMaxCount(), ErrorCode.PARAMS_ERROR, "新配额小于已用容量");
         }
