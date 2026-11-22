@@ -30,7 +30,7 @@ COS 模式需设置 `APP_STORAGE=cos` 以及 `COS_HOST`、`COS_SECRET_ID`、`COS
 
 ## 数据库升级
 
-新库执行 `sql/create_table.sql`。已有图库需备份数据库后，按 [`sql/upgrade_existing_picture.sql`](sql/upgrade_existing_picture.sql) 为原图片表补列并创建空间表，再执行 [`sql/upgrade_vip_codes.sql`](sql/upgrade_vip_codes.sql) 创建兑换码表。新表脚本不会自动修改已有表。
+新库执行 `sql/create_table.sql`。已有图库需备份数据库后，按 [`sql/upgrade_existing_picture.sql`](sql/upgrade_existing_picture.sql) 为原图片表补列并创建空间表，再执行 [`sql/upgrade_vip_codes.sql`](sql/upgrade_vip_codes.sql) 创建兑换码表。旧版专业和旗舰空间还需执行 [`sql/upgrade_space_quotas.sql`](sql/upgrade_space_quotas.sql)，将旧默认容量调整为 1000 MB 和 10000 MB。新表脚本不会自动修改已有表。
 
 ## 验证
 
