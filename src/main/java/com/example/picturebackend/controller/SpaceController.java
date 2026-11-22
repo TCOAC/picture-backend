@@ -5,11 +5,14 @@ import com.example.picturebackend.common.*;
 import com.example.picturebackend.domain.space.SpaceDomainService;
 import com.example.picturebackend.exception.*;
 import com.example.picturebackend.mapper.SpaceMapper;
+import com.example.picturebackend.mapper.SpaceUserMapper;
 import com.example.picturebackend.model.entity.*;
+import com.example.picturebackend.model.vo.SpaceMemberVO;
 import com.example.picturebackend.service.UserService;
 import lombok.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import javax.servlet.http.HttpServletRequest;
 import java.util.*;
 
@@ -19,11 +22,12 @@ import java.util.*;
 public class SpaceController {
     private final SpaceDomainService spaces;
     private final SpaceMapper mapper;
+    private final SpaceUserMapper memberMapper;
     private final UserService users;
 
     @Data public static class SpaceRequest {
         private Long id; private String spaceName; private Integer spaceType; private Integer spaceLevel;
-        private Long userId; private String spaceRole;
+        private Long userId; private String userAccount; private String spaceRole;
     }
 
     @PostMapping("/add")
@@ -72,22 +76,42 @@ public class SpaceController {
     }
 
     @PostMapping("/delete")
+    @Transactional(rollbackFor=Exception.class)
     public BaseResponse<Boolean> delete(@RequestBody DeleteRequest body, HttpServletRequest request) {
         ThrowUtils.throwIf(body==null||body.getId()==null,ErrorCode.PARAMS_ERROR);
         spaces.check(body.getId(), users.getLoginUser(request), "admin");
         ThrowUtils.throwIf(spaces.require(body.getId()).getTotalCount()!=0, ErrorCode.OPERATION_ERROR, "请先清空空间");
-        return ResultUtils.success(mapper.deleteById(body.getId())==1);
+        ThrowUtils.throwIf(mapper.deleteById(body.getId()) != 1, ErrorCode.OPERATION_ERROR);
+        memberMapper.delete(new QueryWrapper<SpaceUser>().eq("spaceId", body.getId()));
+        return ResultUtils.success(true);
     }
 
     @GetMapping("/members")
-    public BaseResponse<List<SpaceUser>> members(@RequestParam Long id, HttpServletRequest request) {
-        return ResultUtils.success(spaces.members(id, users.getLoginUser(request)));
+    public BaseResponse<List<SpaceMemberVO>> members(@RequestParam Long id, HttpServletRequest request) {
+        List<SpaceUser> members = spaces.members(id, users.getLoginUser(request));
+        Set<Long> userIds = new HashSet<>();
+        members.forEach(member -> userIds.add(member.getUserId()));
+        Map<Long, User> byId = new HashMap<>();
+        if (!userIds.isEmpty()) users.listByIds(userIds).forEach(user -> byId.put(user.getId(), user));
+        List<SpaceMemberVO> result = new ArrayList<>();
+        for (SpaceUser member : members) {
+            User user = byId.get(member.getUserId());
+            result.add(new SpaceMemberVO(member, user));
+        }
+        return ResultUtils.success(result);
     }
 
     @PostMapping("/member")
     public BaseResponse<Boolean> member(@RequestBody SpaceRequest body, HttpServletRequest request) {
-        ThrowUtils.throwIf(body.getUserId()==null || users.getById(body.getUserId())==null, ErrorCode.NOT_FOUND_ERROR, "用户不存在");
-        spaces.setMember(body.getId(),body.getUserId(),body.getSpaceRole(),users.getLoginUser(request));
+        ThrowUtils.throwIf(body == null || body.getId() == null, ErrorCode.PARAMS_ERROR);
+        User loginUser = users.getLoginUser(request);
+        spaces.check(body.getId(), loginUser, "admin");
+        User member = body.getUserId() != null ? users.getById(body.getUserId()) : null;
+        if (member == null && StringUtils.hasText(body.getUserAccount())) {
+            member = users.getOne(new QueryWrapper<User>().eq("userAccount", body.getUserAccount().trim()));
+        }
+        ThrowUtils.throwIf(member == null, ErrorCode.NOT_FOUND_ERROR, "用户不存在");
+        spaces.setMember(body.getId(),member.getId(),body.getSpaceRole(),loginUser);
         return ResultUtils.success(true);
     }
 

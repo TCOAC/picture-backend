@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.example.picturebackend.constant.UserConstant;
 import com.example.picturebackend.domain.space.SpaceDomainService;
 import com.example.picturebackend.mapper.SpaceMapper;
+import com.example.picturebackend.mapper.SpaceUserMapper;
 import com.example.picturebackend.model.entity.*;
 import com.example.picturebackend.service.*;
 import com.fasterxml.jackson.databind.*;
@@ -32,6 +33,7 @@ class GalleryAuthorizationTests {
     @Autowired PictureService pictures;
     @Autowired SpaceDomainService spaces;
     @Autowired SpaceMapper spaceMapper;
+    @Autowired SpaceUserMapper spaceUserMapper;
     @Autowired ObjectMapper json;
 
     private User user(String role){
@@ -54,6 +56,33 @@ class GalleryAuthorizationTests {
         if(space!=null)req.param("spaceId",space.toString());
         String response=mvc.perform(req.session(session)).andExpect(status().isOk()).andExpect(jsonPath("$.code").value(0)).andReturn().getResponse().getContentAsString();
         return json.readTree(response).get("data");
+    }
+    @Test void teamMembersCanBeInvitedByAccountAndAreRemovedWithSpace() throws Exception {
+        User owner = user("user");
+        User member = user("user");
+        User stranger = user("user");
+        Space team = spaces.create("Design team", 1, owner);
+        MockHttpSession ownerSession = session(owner);
+
+        mvc.perform(post("/space/member").session(ownerSession).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"id\":\"" + team.getId() + "\",\"userAccount\":\"" + member.getUserAccount()
+                        + "\",\"spaceRole\":\"editor\"}"))
+                .andExpect(jsonPath("$.code").value(0));
+        mvc.perform(get("/space/mine").session(session(member)))
+                .andExpect(jsonPath("$.data[0].role").value("editor"));
+        mvc.perform(get("/space/members").param("id", team.getId().toString()).session(ownerSession))
+                .andExpect(jsonPath("$.data[1].userName").value("tester"))
+                .andExpect(jsonPath("$.data[1].userPassword").doesNotExist());
+        mvc.perform(post("/space/member").session(session(stranger)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"id\":\"" + team.getId() + "\",\"userAccount\":\""
+                        + stranger.getUserAccount() + "\",\"spaceRole\":\"admin\"}"))
+                .andExpect(jsonPath("$.code").value(40101));
+
+        mvc.perform(post("/space/delete").session(ownerSession).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"id\":\"" + team.getId() + "\"}"))
+                .andExpect(jsonPath("$.code").value(0));
+        assertEquals(0, spaceUserMapper.selectCount(
+                new QueryWrapper<SpaceUser>().eq("spaceId", team.getId())));
     }
     @Test void teamViewerCanReadButCannotEditAndRevocationTakesEffect()throws Exception{
         User owner=user("user"),viewer=user("user"),stranger=user("user");

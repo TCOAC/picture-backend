@@ -22,4 +22,6 @@ public class Space {
     private Date updateTime;
     @TableLogic
     private Integer isDelete;
+    @TableField(exist = false)
+    private String role;
 }

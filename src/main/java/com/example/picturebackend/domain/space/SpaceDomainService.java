@@ -68,13 +68,16 @@ public class SpaceDomainService {
     }
 
     public List<Space> mine(User user) {
-        Set<Long> ids = new HashSet<>();
+        Map<Long, String> memberships = new HashMap<>();
         members.selectList(new QueryWrapper<SpaceUser>().eq("userId", user.getId()))
-                .forEach(m -> ids.add(m.getSpaceId()));
-        return spaces.selectList(new QueryWrapper<Space>().and(q -> {
+                .forEach(member -> memberships.put(member.getSpaceId(), member.getSpaceRole()));
+        List<Space> result = spaces.selectList(new QueryWrapper<Space>().and(q -> {
             q.eq("userId", user.getId());
-            if (!ids.isEmpty()) q.or().in("id", ids);
+            if (!memberships.isEmpty()) q.or().in("id", memberships.keySet());
         }).orderByDesc("createTime"));
+        result.forEach(space -> space.setRole(space.getUserId().equals(user.getId())
+                ? "admin" : memberships.get(space.getId())));
+        return result;
     }
 
     public void adjustUsage(Long id, long count, long size) {
