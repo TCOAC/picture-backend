@@ -9,6 +9,7 @@ import com.example.picturebackend.model.vo.PictureVO;
 import com.example.picturebackend.service.*;
 import lombok.*;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
 import org.springframework.util.*;
@@ -24,6 +25,9 @@ import java.util.*;
 public class AiImageController {
     private final PictureService pictures;private final UserService users;private final PictureAccess access;
     private final FileManager files;private final RemoteImageFetcher fetcher;private final PictureController pictureController;
+    @javax.annotation.Resource
+    @Lazy
+    private com.example.picturebackend.service.AiOutpaintingTaskService tasks;
     @Value("${app.ai.image-api-url:}")private String endpoint;
     @Value("${app.ai.api-key:}")private String apiKey;
     @Value("${app.ai.model:}")private String model;
@@ -56,6 +60,23 @@ public class AiImageController {
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "原图读取失败");
         }
+    }
+
+    @PostMapping("/outpaint/task")
+    public BaseResponse<com.example.picturebackend.model.vo.AiTaskVO> createTask(
+            @RequestBody OutpaintRequest body, HttpServletRequest request) {
+        ThrowUtils.throwIf(body == null || body.getId() == null || body.getScale() == null,
+                ErrorCode.PARAMS_ERROR, "扩图参数不完整");
+        User user = users.getLoginUser(request);
+        access.edit(pictures.getById(body.getId()), user);
+        return ResultUtils.success(tasks.create(body.getId(), body.getScale(), body.getPrompt(), user, request));
+    }
+
+    @GetMapping("/outpaint/task")
+    public BaseResponse<com.example.picturebackend.model.vo.AiTaskVO> getTask(
+            @RequestParam String taskId, HttpServletRequest request) {
+        ThrowUtils.throwIf(!StringUtils.hasText(taskId), ErrorCode.PARAMS_ERROR, "任务编号不能为空");
+        return ResultUtils.success(tasks.get(taskId, users.getLoginUser(request)));
     }
 
     private Picture editablePicture(Long id, HttpServletRequest request) {
@@ -135,3 +156,4 @@ public class AiImageController {
         return new HttpEntity<>(resource, headers);
     }
 }
+

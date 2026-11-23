@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 @SpringBootTest
@@ -112,6 +113,45 @@ class AiOutpaintingTests {
         assertTrue(MODEL_REQUEST.get().contains("name=\"image\""));
         assertTrue(MODEL_REQUEST.get().contains("transparent border"));
         assertEquals("Bearer test-key", AUTH_HEADER.get());
+    }
+
+    @Test
+    void createsAndPollsOutpaintingTask() throws Exception {
+        User owner = new User();
+        owner.setUserAccount("task_" + UUID.randomUUID().toString().replace("-", "").substring(0, 20));
+        owner.setUserPassword(users.getEncryptPassword("test-pass-123"));
+        owner.setUserName("task-owner");
+        owner.setUserRole("user");
+        assertTrue(users.save(owner));
+        MockHttpSession session = (MockHttpSession) mvc.perform(post("/user/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"userAccount\":\"" + owner.getUserAccount() + "\",\"userPassword\":\"test-pass-123\"}"))
+                .andExpect(jsonPath("$.code").value(0))
+                .andReturn().getRequest().getSession(false);
+        String upload = mvc.perform(multipart("/picture/upload").file(
+                        new MockMultipartFile("file", "task.png", "image/png", png(4, 3))).session(session))
+                .andExpect(jsonPath("$.code").value(0)).andReturn().getResponse().getContentAsString();
+        String id = json.readTree(upload).get("data").get("id").asText();
+        String created = mvc.perform(post("/picture/ai/outpaint/task").session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"id\":\"" + id + "\",\"scale\":1.5}"))
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.taskId").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+        String taskId = json.readTree(created).get("data").get("taskId").asText();
+        JsonNode state = null;
+        for (int attempt = 0; attempt < 30; attempt++) {
+            String polled = mvc.perform(get("/picture/ai/outpaint/task")
+                            .param("taskId", taskId).session(session))
+                    .andExpect(jsonPath("$.code").value(0))
+                    .andReturn().getResponse().getContentAsString();
+            state = json.readTree(polled).get("data");
+            if ("SUCCEEDED".equals(state.get("status").asText())) break;
+            Thread.sleep(50L);
+        }
+        assertNotNull(state);
+        assertEquals("SUCCEEDED", state.get("status").asText());
+        assertEquals(8, state.get("result").get("picWidth").asInt());
     }
 
     private static byte[] png(int width, int height) throws IOException {
