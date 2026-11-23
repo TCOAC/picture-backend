@@ -65,6 +65,10 @@ app:
     image-api-url: ${AI_IMAGE_API_URL:}
     api-key: ${AI_IMAGE_API_KEY:}
     model: ${AI_IMAGE_MODEL:}
+  image-search:
+    enabled: ${IMAGE_SEARCH_ENABLED:false}
+    public-base-url: ${IMAGE_SEARCH_PUBLIC_BASE_URL:}
+    upload-endpoint: ${IMAGE_SEARCH_UPLOAD_ENDPOINT:https://graph.baidu.com/upload}
 
 # Tencent Cloud COS settings. Use environment variables or application-local.yml;
 # never commit real credentials.

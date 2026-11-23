@@ -20,6 +20,7 @@ import com.example.picturebackend.model.tdo.picture.PictureQueryRequest;
 import com.example.picturebackend.model.tdo.picture.PictureReviewRequest;
 import com.example.picturebackend.model.tdo.picture.PictureUploadRequest;
 import com.example.picturebackend.model.vo.PictureVO;
+import com.example.picturebackend.model.vo.ExternalImageSearchResult;
 import com.example.picturebackend.service.PictureService;
 import com.example.picturebackend.service.PublicGalleryCache;
 import com.example.picturebackend.service.UserService;
@@ -48,6 +49,7 @@ public class PictureController {
     @Resource private com.example.picturebackend.domain.space.PictureAccess access;
     @Resource private com.example.picturebackend.domain.space.CollaborationLocks locks;
     @Resource private PublicGalleryCache publicGalleryCache;
+    @Resource private com.example.picturebackend.service.ExternalImageSearchService externalImageSearch;
 
     /** Upload/create or replace an image. Members' changes return to the moderation queue. */
     @PostMapping("/upload")
@@ -297,6 +299,18 @@ public class PictureController {
     public PictureVO toPictureVO(Picture picture){return pictureService.getPictureVO(picture);}
     public void incrementDownload(Long id){pictureService.update(new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<Picture>().eq("id",id).setSql("downloadCount=downloadCount+1"));}
     public Picture findByStorageKey(String key){return pictureService.getOne(new QueryWrapper<Picture>().eq("url","/api/media/"+key).last("LIMIT 1"));}
+
+    @PostMapping("/search/external")
+    public BaseResponse<List<ExternalImageSearchResult>> searchExternal(
+            @RequestBody com.example.picturebackend.model.tdo.picture.PictureSimilarSearchRequest body,
+            HttpServletRequest request) {
+        ThrowUtils.throwIf(body == null || body.getPictureId() == null,
+                ErrorCode.PARAMS_ERROR, "图片不能为空");
+        Picture picture = pictureService.getById(body.getPictureId());
+        ThrowUtils.throwIf(picture == null, ErrorCode.NOT_FOUND_ERROR);
+        access.read(picture, request, null);
+        return ResultUtils.success(externalImageSearch.search(picture.getUrl()));
+    }
     @PostMapping("/transform")
     @Transactional(rollbackFor=Exception.class)
     public BaseResponse<PictureVO> transform(@RequestBody TransformRequest body,HttpServletRequest request)throws java.io.IOException{
