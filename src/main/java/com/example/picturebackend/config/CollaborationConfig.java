@@ -21,7 +21,7 @@ import javax.servlet.http.HttpSession;
 @EnableWebSocket
 @RequiredArgsConstructor
 public class CollaborationConfig implements WebSocketConfigurer {
-    private final PictureService pictures;private final UserService users;private final PictureAccess access;private final CollaborationLocks locks;private final ObjectMapper json;
+    private final PictureService pictures;private final UserService users;private final PictureAccess access;private final CollaborationLocks locks;private final CollaborationEventQueue queue;private final ObjectMapper json;
     private final SpaceDomainService spaces;
     @Value("${app.cors.allowed-origins}")private String origins;
     private final Map<Long,Set<WebSocketSession>> rooms=new ConcurrentHashMap<>();
@@ -54,6 +54,9 @@ public class CollaborationConfig implements WebSocketConfigurer {
             access.edit(pictures.getById((Long)session.getAttributes().get("pictureId")),user);return user;
         }
         protected void handleTextMessage(WebSocketSession session,TextMessage message)throws Exception{
+            queue.publish(() -> processMessage(session, message));
+        }
+        private void processMessage(WebSocketSession session,TextMessage message){
             try{
                 User user=authorize(session);Long id=(Long)session.getAttributes().get("pictureId");
                 JsonNode input=json.readTree(message.getPayload());String type=input.path("type").asText();
@@ -69,7 +72,7 @@ public class CollaborationConfig implements WebSocketConfigurer {
                 for(WebSocketSession peer:rooms.getOrDefault(id,Collections.emptySet())){
                     try{authorize(peer);synchronized(peer){if(peer.isOpen())peer.sendMessage(output);}}catch(Exception e){peer.close(CloseStatus.POLICY_VIOLATION);}
                 }
-            }catch(Exception e){session.close(CloseStatus.POLICY_VIOLATION);}
+            }catch(Exception e){try{session.close(CloseStatus.POLICY_VIOLATION);}catch(Exception ignored){}}
         }
         public void afterConnectionClosed(WebSocketSession session,CloseStatus status){
             Long id=(Long)session.getAttributes().get("pictureId");Set<WebSocketSession> room=rooms.get(id);
