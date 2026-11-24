@@ -123,6 +123,7 @@ public class SpaceAnalyzeController {
     }
 
     private QueryWrapper<Picture> scope(Map<String, Object> body, HttpServletRequest request) {
+        ThrowUtils.throwIf(body == null, ErrorCode.PARAMS_ERROR);
         String target = queryScope(body);
         if ("all".equals(target) || "public".equals(target)) {
             ThrowUtils.throwIf(!users.isAdmin(users.getLoginUser(request)), ErrorCode.NO_AUTH_ERROR);
