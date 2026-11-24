@@ -78,8 +78,9 @@ public class ExternalImageSearchService {
                 throw new BusinessException(ErrorCode.OPERATION_ERROR, "外部搜索服务未接受图片");
             }
             String url = root.path("data").path("url").asText("");
-            validateHttpUrl(url);
-            return URLDecoder.decode(url, StandardCharsets.UTF_8.name());
+            String decoded = URLDecoder.decode(url, StandardCharsets.UTF_8.name());
+            validateProviderUrl(decoded);
+            return decoded;
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
@@ -95,7 +96,7 @@ public class ExternalImageSearchService {
                 throw new BusinessException(ErrorCode.OPERATION_ERROR, "外部搜索结果格式已变化");
             }
             String resultUrl = matcher.group(1).replace("\\/", "/");
-            validateHttpUrl(resultUrl);
+            validateProviderUrl(resultUrl);
             return resultUrl;
         } catch (BusinessException e) {
             throw e;
@@ -163,6 +164,15 @@ public class ExternalImageSearchService {
             }
         } catch (IllegalArgumentException e) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "图片地址不合法");
+        }
+    }
+
+    private void validateProviderUrl(String value) {
+        validateHttpUrl(value);
+        String expectedHost = URI.create(uploadEndpoint).getHost();
+        String actualHost = URI.create(value).getHost();
+        if (expectedHost == null || actualHost == null || !expectedHost.equalsIgnoreCase(actualHost)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "外部搜索服务返回了无效结果地址");
         }
     }
 }

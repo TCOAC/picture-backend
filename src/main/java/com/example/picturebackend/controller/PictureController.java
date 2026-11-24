@@ -64,6 +64,14 @@ public class PictureController {
             @RequestParam(required = false) String tags,
             HttpServletRequest request) {
         User loginUser = userService.getLoginUser(request);
+        return uploadPictureForUser(file, id, spaceId, name, introduction, category, tags, loginUser);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public BaseResponse<PictureVO> uploadPictureForUser(
+            MultipartFile file, Long id, Long spaceId, String name,
+            String introduction, String category, String tags, User loginUser) {
+        ThrowUtils.throwIf(loginUser == null || loginUser.getId() == null, ErrorCode.NOT_LOGIN_ERROR);
         Picture oldPicture = null;
         if (id != null) {
             oldPicture = pictureService.getOne(new QueryWrapper<Picture>().eq("id", id).last("FOR UPDATE"));

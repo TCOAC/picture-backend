@@ -113,6 +113,63 @@ class GalleryAuthorizationTests {
         assertEquals(1, spaceMapper.selectCount(new QueryWrapper<Space>()
                 .eq("userId", owner.getId()).eq("spaceType", 1)));
     }
+    @Test void tutorialSpaceAnalysisEndpointsEnforceScopeAndAdminRank() throws Exception {
+        User owner = user("user");
+        User stranger = user("user");
+        User admin = user("admin");
+        Space space = spaces.create("Analysis space", 0, owner);
+        MockHttpSession ownerSession = session(owner);
+        String request = "{\"spaceId\":\"" + space.getId() + "\"}";
+
+        mvc.perform(post("/space/analyze/usage").session(ownerSession).contentType(MediaType.APPLICATION_JSON).content(request))
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.usedCount").value(0))
+                .andExpect(jsonPath("$.data.countUsageRatio").value(0));
+        mvc.perform(post("/space/analyze/category").session(ownerSession).contentType(MediaType.APPLICATION_JSON).content(request))
+                .andExpect(jsonPath("$.code").value(0));
+        mvc.perform(post("/space/analyze/tag").session(ownerSession).contentType(MediaType.APPLICATION_JSON).content(request))
+                .andExpect(jsonPath("$.code").value(0));
+        mvc.perform(post("/space/analyze/size").session(ownerSession).contentType(MediaType.APPLICATION_JSON).content(request))
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.length()").value(4));
+        mvc.perform(post("/space/analyze/user").session(ownerSession).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"spaceId\":\"" + space.getId() + "\",\"timeDimension\":\"day\"}"))
+                .andExpect(jsonPath("$.code").value(0));
+        mvc.perform(post("/space/analyze/usage").session(session(stranger)).contentType(MediaType.APPLICATION_JSON).content(request))
+                .andExpect(jsonPath("$.code").value(40101));
+        mvc.perform(post("/space/analyze/rank").session(ownerSession).contentType(MediaType.APPLICATION_JSON).content("{\"topN\":5}"))
+                .andExpect(jsonPath("$.code").value(40101));
+        mvc.perform(post("/space/analyze/rank").session(session(admin)).contentType(MediaType.APPLICATION_JSON).content("{\"topN\":5}"))
+                .andExpect(jsonPath("$.code").value(0));
+    }
+
+    @Test void tutorialSpaceUserRoutesSupportMemberLifecycle() throws Exception {
+        User owner = user("user");
+        User editor = user("user");
+        Space team = spaces.create("Compatible team", 1, owner);
+        MockHttpSession ownerSession = session(owner);
+        String member = "{\"spaceId\":\"" + team.getId() + "\",\"userId\":\""
+                + editor.getId() + "\",\"spaceRole\":\"editor\"}";
+        mvc.perform(post("/spaceUser/add").session(ownerSession)
+                        .contentType(MediaType.APPLICATION_JSON).content(member))
+                .andExpect(jsonPath("$.code").value(0));
+        mvc.perform(post("/spaceUser/list").session(ownerSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"spaceId\":\"" + team.getId() + "\"}"))
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data[1].spaceRole").value("editor"));
+        mvc.perform(post("/spaceUser/edit").session(ownerSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"spaceId\":\"" + team.getId() + "\",\"userId\":\""
+                                + editor.getId() + "\",\"spaceRole\":\"viewer\"}"))
+                .andExpect(jsonPath("$.code").value(0));
+        mvc.perform(post("/spaceUser/delete").session(ownerSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"spaceId\":\"" + team.getId() + "\",\"userId\":\""
+                                + editor.getId() + "\"}"))
+                .andExpect(jsonPath("$.code").value(0));
+    }
+
     @Test void teamMembersCanBeInvitedByAccountAndAreRemovedWithSpace() throws Exception {
         User owner = user("user");
         User member = user("user");

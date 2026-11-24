@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CompletableFuture;
-import javax.servlet.http.HttpServletRequest;
 
 @Service
 public class AiOutpaintingTaskService {
@@ -25,7 +24,7 @@ public class AiOutpaintingTaskService {
         this.pictures = pictures;
     }
 
-    public AiTaskVO create(Long pictureId, double scale, String prompt, User user, HttpServletRequest request) {
+    public AiTaskVO create(Long pictureId, double scale, String prompt, User user) {
         if (pictureId == null || user == null || !Double.isFinite(scale) || scale < 1.1 || scale > 2.0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "扩图参数不合法");
         }
@@ -35,11 +34,12 @@ public class AiOutpaintingTaskService {
         AiTaskVO task = new AiTaskVO();
         task.setTaskId(taskId);
         task.setPictureId(pictureId);
+        task.setRequesterId(user.getId());
         task.setStatus("PENDING");
         task.setCreatedAt(new Date());
         task.setUpdatedAt(task.getCreatedAt());
         tasks.put(taskId, task);
-        CompletableFuture.runAsync(() -> run(taskId, pictureId, scale, prompt, request));
+        CompletableFuture.runAsync(() -> run(taskId, pictureId, scale, prompt, user));
         return copy(task);
     }
 
@@ -47,14 +47,14 @@ public class AiOutpaintingTaskService {
         AiTaskVO task = tasks.get(taskId);
         if (task == null) throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "任务不存在");
         Picture picture = pictures.getById(task.getPictureId());
-        if (picture == null || !picture.getUserId().equals(user.getId())
+        if (picture == null || !task.getRequesterId().equals(user.getId())
                 && !"admin".equals(user.getUserRole())) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无任务访问权限");
         }
         return copy(task);
     }
 
-    public void run(String taskId, Long pictureId, double scale, String prompt, HttpServletRequest request) {
+    public void run(String taskId, Long pictureId, double scale, String prompt, User user) {
         AiTaskVO task = tasks.get(taskId);
         if (task == null) return;
         task.setStatus("RUNNING");
@@ -64,7 +64,7 @@ public class AiOutpaintingTaskService {
             body.setId(pictureId);
             body.setScale(scale);
             body.setPrompt(prompt);
-            BaseResponse<PictureVO> response = aiImageController.outpaint(body, request);
+            BaseResponse<PictureVO> response = aiImageController.outpaintForTask(body, user);
             if (response.getCode() != 0) {
                 throw new BusinessException(response.getCode(), response.getMessage());
             }
@@ -85,6 +85,7 @@ public class AiOutpaintingTaskService {
         AiTaskVO copy = new AiTaskVO();
         copy.setTaskId(source.getTaskId());
         copy.setPictureId(source.getPictureId());
+        copy.setRequesterId(source.getRequesterId());
         copy.setStatus(source.getStatus());
         copy.setMessage(source.getMessage());
         copy.setResult(source.getResult());

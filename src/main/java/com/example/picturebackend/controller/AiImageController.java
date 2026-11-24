@@ -37,8 +37,9 @@ public class AiImageController {
     public BaseResponse<PictureVO> edit(@RequestBody EditRequest body, HttpServletRequest request) {
         ThrowUtils.throwIf(body == null || body.getId() == null || !StringUtils.hasText(body.getPrompt())
                 || body.getPrompt().length() > 500, ErrorCode.PARAMS_ERROR, "请输入 1-500 字的编辑描述");
-        Picture picture = editablePicture(body.getId(), request);
-        return generate(picture, body.getPrompt().trim(), null, request);
+        User user = users.getLoginUser(request);
+        Picture picture = editablePicture(body.getId(), user);
+        return generate(picture, body.getPrompt().trim(), null, user);
     }
 
     @PostMapping("/outpaint")
@@ -47,14 +48,15 @@ public class AiImageController {
                 || !Double.isFinite(body.getScale()) || body.getScale() < 1.1 || body.getScale() > 2.0
                 || body.getPrompt() != null && body.getPrompt().length() > 500,
                 ErrorCode.PARAMS_ERROR, "扩图参数不合法");
-        Picture picture = editablePicture(body.getId(), request);
+        User user = users.getLoginUser(request);
+        Picture picture = editablePicture(body.getId(), user);
         String prompt = "Extend this image naturally into the transparent border. Preserve the original center.";
         if (StringUtils.hasText(body.getPrompt())) {
             prompt += " " + body.getPrompt().trim();
         }
         try {
             OutpaintingCanvas canvas = OutpaintingCanvas.from(files.read(storageKey(picture)), body.getScale());
-            return generate(picture, prompt, canvas, request);
+            return generate(picture, prompt, canvas, user);
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
@@ -69,7 +71,7 @@ public class AiImageController {
                 ErrorCode.PARAMS_ERROR, "扩图参数不完整");
         User user = users.getLoginUser(request);
         access.edit(pictures.getById(body.getId()), user);
-        return ResultUtils.success(tasks.create(body.getId(), body.getScale(), body.getPrompt(), user, request));
+        return ResultUtils.success(tasks.create(body.getId(), body.getScale(), body.getPrompt(), user));
     }
 
     @GetMapping("/outpaint/task")
@@ -79,8 +81,25 @@ public class AiImageController {
         return ResultUtils.success(tasks.get(taskId, users.getLoginUser(request)));
     }
 
-    private Picture editablePicture(Long id, HttpServletRequest request) {
-        User user = users.getLoginUser(request);
+    public BaseResponse<PictureVO> outpaintForTask(OutpaintRequest body, User user) {
+        ThrowUtils.throwIf(body == null || body.getId() == null || body.getScale() == null
+                || !Double.isFinite(body.getScale()) || body.getScale() < 1.1 || body.getScale() > 2.0
+                || body.getPrompt() != null && body.getPrompt().length() > 500,
+                ErrorCode.PARAMS_ERROR, "扩图参数不合法");
+        Picture picture = editablePicture(body.getId(), user);
+        String prompt = "Extend this image naturally into the transparent border. Preserve the original center.";
+        if (StringUtils.hasText(body.getPrompt())) prompt += " " + body.getPrompt().trim();
+        try {
+            OutpaintingCanvas canvas = OutpaintingCanvas.from(files.read(storageKey(picture)), body.getScale());
+            return generate(picture, prompt, canvas, user);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "原图读取失败");
+        }
+    }
+
+    private Picture editablePicture(Long id, User user) {
         Picture picture = pictures.getById(id);
         access.edit(picture, user);
         return picture;
@@ -91,7 +110,7 @@ public class AiImageController {
     }
 
     private BaseResponse<PictureVO> generate(Picture picture, String prompt, OutpaintingCanvas canvas,
-                                             HttpServletRequest request) {
+                                             User user) {
         ThrowUtils.throwIf(!StringUtils.hasText(endpoint) || !StringUtils.hasText(apiKey)
                 || !StringUtils.hasText(model), ErrorCode.OPERATION_ERROR,
                 "AI 图片服务尚未配置；请设置 AI_IMAGE_API_URL、AI_IMAGE_API_KEY 和 AI_IMAGE_MODEL");
@@ -132,9 +151,9 @@ public class AiImageController {
             }
             String format = item.get("output_format") instanceof String
                     ? (String) item.get("output_format") : "png";
-            return pictureController.uploadPicture(new ByteArrayMultipartFile(output, picture.getName() + "." + format),
+            return pictureController.uploadPictureForUser(new ByteArrayMultipartFile(output, picture.getName() + "." + format),
                     picture.getId(), picture.getSpaceId(), picture.getName(), picture.getIntroduction(),
-                    picture.getCategory(), picture.getTags(), request);
+                    picture.getCategory(), picture.getTags(), user);
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
