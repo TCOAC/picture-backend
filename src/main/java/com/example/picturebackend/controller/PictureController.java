@@ -317,6 +317,9 @@ public class PictureController {
         Picture picture = pictureService.getById(body.getPictureId());
         ThrowUtils.throwIf(picture == null, ErrorCode.NOT_FOUND_ERROR);
         access.read(picture, request, null);
+        ThrowUtils.throwIf(picture.getSpaceId() != null
+                        || !Integer.valueOf(PictureReviewStatusEnum.PASS.getValue()).equals(picture.getReviewStatus()),
+                ErrorCode.NO_AUTH_ERROR, "外部以图搜图仅支持已审核公开图片");
         return ResultUtils.success(externalImageSearch.search(picture.getUrl()));
     }
     @PostMapping("/transform")

@@ -24,7 +24,7 @@ mvn spring-boot:run
 
 接口地址为 `http://localhost:8123/api`。上传文件写到 `./data/uploads`；媒体 URL 仍经过应用鉴权。前端开发服务器通过 Vite 将 `/api` 与 `/api/ws` 代理到该地址。首次将用户升级为站点管理员时，先正常注册，再由数据库管理员执行 `UPDATE user SET userRole='admin' WHERE userAccount='your-account';`。
 
-COS 模式需设置 `APP_STORAGE=cos` 以及 `COS_HOST`、`COS_SECRET_ID`、`COS_SECRET_KEY`、`COS_REGION`、`COS_BUCKET`。AI 图片编辑和扩图需要设置 `AI_IMAGE_API_URL`、`AI_IMAGE_API_KEY`、`AI_IMAGE_MODEL`；模型服务需支持 Images Edits 的 `image` 与 `mask` multipart 字段。扩图支持同步 `/api/picture/ai/outpaint`，也支持创建任务 `/api/picture/ai/outpaint/task` 和查询任务 `/api/picture/ai/outpaint/task?taskId=...`。模型服务不配置时接口明确返回不可用。外部以图搜图需要设置 `IMAGE_SEARCH_ENABLED=true` 和可被外部搜索服务访问的 `IMAGE_SEARCH_PUBLIC_BASE_URL`，接口为 `/api/picture/search/external`。
+COS 模式需设置 `APP_STORAGE=cos` 以及 `COS_HOST`、`COS_SECRET_ID`、`COS_SECRET_KEY`、`COS_REGION`、`COS_BUCKET`。AI 图片编辑和扩图需要设置 `AI_IMAGE_API_URL`、`AI_IMAGE_API_KEY`、`AI_IMAGE_MODEL`；模型服务需支持 Images Edits 的 `image` 与 `mask` multipart 字段。扩图支持同步 `/api/picture/ai/outpaint`，也支持创建任务 `/api/picture/ai/outpaint/task` 和查询任务 `/api/picture/ai/outpaint/task?taskId=...`。模型服务不配置时接口明确返回不可用。外部以图搜图需要设置 `IMAGE_SEARCH_ENABLED=true` 和可被外部搜索服务访问的 `IMAGE_SEARCH_PUBLIC_BASE_URL`，接口为 `/api/picture/search/external`，仅允许已审核的公共图片，以免将私有内容发送给第三方。
 
 本地运行默认使用进程内会话和 Caffeine 缓存。需要共享会话与二级缓存时，启动 Redis 并设置 `REDIS_HOST`、`REDIS_PORT`、`REDIS_PASSWORD`、`SESSION_STORE_TYPE=redis`、`APP_CACHE_REDIS_ENABLED=true`。Docker Compose 已包含 Redis 服务，需在 `.env` 中分别设置数据库和 Redis 密码。
 

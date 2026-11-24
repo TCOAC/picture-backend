@@ -19,7 +19,8 @@ public class MediaController {
     private final FileManager files; private final PictureService pictures; private final PictureAccess access;
     @GetMapping("/media/{key:.+}")
     public ResponseEntity<byte[]> media(@PathVariable String key,@RequestParam(defaultValue="false") boolean thumbnail,
-            @RequestParam(defaultValue="false") boolean download,@RequestParam(required=false) String code,HttpServletRequest request)throws IOException{
+            @RequestParam(defaultValue="false") boolean download,@RequestParam(required=false) String code,
+            HttpServletRequest request)throws IOException{
         ThrowUtils.throwIf(!key.matches("[a-f0-9]{64}\\.(jpg|png|webp)"),ErrorCode.NOT_FOUND_ERROR);
         // Multiple records may reference the same content; any authorized reference grants access to those bytes.
         List<Picture> refs=pictures.list(new QueryWrapper<Picture>().eq("fileHash",key.substring(0,64)).last("LIMIT 100"));
@@ -34,4 +35,5 @@ public class MediaController {
                 .header("Content-Disposition",download?"attachment; filename=\"picture."+allowed.getPicFormat()+"\"":"inline")
                 .contentType(MediaType.parseMediaType(type)).body(content);
     }
+
 }

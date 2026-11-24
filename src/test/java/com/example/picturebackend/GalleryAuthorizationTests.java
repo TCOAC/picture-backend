@@ -170,6 +170,25 @@ class GalleryAuthorizationTests {
                 .andExpect(jsonPath("$.code").value(0));
     }
 
+    @Test void externalImageSearchOnlyAcceptsApprovedPublicPictures() throws Exception {
+        User owner = user("user");
+        MockHttpSession ownerSession = session(owner);
+        Space privateSpace = spaces.create("Private search source", 0, owner);
+        JsonNode privatePicture = upload(ownerSession, privateSpace.getId());
+        mvc.perform(post("/picture/search/external").session(ownerSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"pictureId\":\"" + privatePicture.get("id").asText() + "\"}"))
+                .andExpect(jsonPath("$.code").value(40101));
+
+        User admin = user("admin");
+        MockHttpSession adminSession = session(admin);
+        JsonNode publicPicture = upload(adminSession, null);
+        mvc.perform(post("/picture/search/external").session(adminSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"pictureId\":\"" + publicPicture.get("id").asText() + "\"}"))
+                .andExpect(jsonPath("$.code").value(50001));
+    }
+
     @Test void teamMembersCanBeInvitedByAccountAndAreRemovedWithSpace() throws Exception {
         User owner = user("user");
         User member = user("user");
