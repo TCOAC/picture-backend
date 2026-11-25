@@ -73,6 +73,14 @@ app:
     public-base-url: ${IMAGE_SEARCH_PUBLIC_BASE_URL:}
     upload-endpoint: ${IMAGE_SEARCH_UPLOAD_ENDPOINT:https://graph.baidu.com/upload}
 
+sa-token:
+  token-name: satoken
+  timeout: ${APP_AUTH_TOKEN_TIMEOUT_SECONDS:604800}
+  is-concurrent: false
+  is-share: false
+  is-read-cookie: true
+  is-read-header: true
+
 # Tencent Cloud COS settings. Use environment variables or application-local.yml;
 # never commit real credentials.
 cos:

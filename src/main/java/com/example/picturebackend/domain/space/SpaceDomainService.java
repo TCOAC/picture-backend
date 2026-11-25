@@ -40,8 +40,12 @@ public class SpaceDomainService {
     public void check(Long spaceId, User user, String permission) {
         if (spaceId == null) return;
         String role = role(spaceId, user);
-        boolean allowed = role != null && ("read".equals(permission) || "admin".equals(role)
-                || ("edit".equals(permission) && "editor".equals(role)));
+        boolean read = "read".equals(permission) || "view".equals(permission);
+        boolean edit = "edit".equals(permission) || "upload".equals(permission)
+                || "delete".equals(permission);
+        boolean manage = "admin".equals(permission) || "manage".equals(permission);
+        boolean allowed = role != null && (read || (edit && ("editor".equals(role) || "admin".equals(role)))
+                || (manage && "admin".equals(role)));
         ThrowUtils.throwIf(!allowed, ErrorCode.NO_AUTH_ERROR, "无空间操作权限");
     }
 

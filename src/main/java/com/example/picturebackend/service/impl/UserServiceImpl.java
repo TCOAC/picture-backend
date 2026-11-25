@@ -13,6 +13,7 @@ import com.example.picturebackend.model.tdo.user.UserQueryRequest;
 import com.example.picturebackend.model.vo.LoginUserVO;
 import com.example.picturebackend.service.UserService;
 import com.example.picturebackend.service.LoginTokenService;
+import com.example.picturebackend.service.SaTokenAuthService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
@@ -36,6 +37,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
     @javax.annotation.Resource
     private LoginTokenService loginTokenService;
+
+    @javax.annotation.Resource
+    private SaTokenAuthService saTokenAuthService;
 
     @Override
     public long userRegister(String userAccount, String userPassword, String checkPassword) {
@@ -118,7 +122,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         // 3. 记录用户的登录态
         request.getSession().setAttribute(USER_LOGIN_STATE, user);
         LoginUserVO result = this.getLoginUserVO(user);
-        result.setToken(loginTokenService.issue(user.getId()));
+        result.setToken(saTokenAuthService.login(user.getId()));
+        if (StrUtil.isBlank(result.getToken())) {
+            result.setToken(loginTokenService.issue(user.getId()));
+        }
         return result;
     }
 
@@ -129,7 +136,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
                 request.getSession(false).getAttribute(USER_LOGIN_STATE);
         User currentUser = userObj instanceof User ? (User) userObj : null;
         if (currentUser == null || currentUser.getId() == null) {
-            Long tokenUserId = loginTokenService.resolve(readToken(request));
+            Long tokenUserId = saTokenAuthService.resolve();
+            if (tokenUserId == null) {
+                tokenUserId = loginTokenService.resolve(readToken(request));
+            }
             currentUser = tokenUserId == null ? null : this.getById(tokenUserId);
         }
         if (currentUser == null || currentUser.getId() == null) {
@@ -160,11 +170,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         Object userObj = request.getSession(false) == null ? null :
                 request.getSession(false).getAttribute(USER_LOGIN_STATE);
         String token = readToken(request);
-        if (userObj == null && loginTokenService.resolve(token) == null) {
+        if (userObj == null && saTokenAuthService.resolve() == null && loginTokenService.resolve(token) == null) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "未登录");
         }
         // 移除登录态
         loginTokenService.revoke(token);
+        saTokenAuthService.logout();
         if (request.getSession(false) != null) {
             request.getSession(false).invalidate();
         }
