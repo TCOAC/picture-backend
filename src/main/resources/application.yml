@@ -55,6 +55,9 @@ knife4j:
 
 # Comma-separated browser origins. Keep this explicit because sessions use cookies.
 app:
+  auth:
+    # Token clients can keep using the same login endpoint as browser sessions.
+    token-timeout-hours: ${APP_AUTH_TOKEN_TIMEOUT_HOURS:168}
   cache:
     redis-enabled: ${APP_CACHE_REDIS_ENABLED:false}
   storage: ${APP_STORAGE:local}

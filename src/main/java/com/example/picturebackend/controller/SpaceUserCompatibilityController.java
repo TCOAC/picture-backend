@@ -41,6 +41,7 @@ public class SpaceUserCompatibilityController {
 
     @PostMapping("/delete")
     public BaseResponse<Boolean> delete(@RequestBody Map<String, Object> body, HttpServletRequest request) {
+        ThrowUtils.throwIf(body == null, ErrorCode.PARAMS_ERROR);
         Long spaceId = id(body.get("spaceId"));
         Long userId = id(body.get("userId"));
         ThrowUtils.throwIf(spaceId == null || userId == null, ErrorCode.PARAMS_ERROR);
@@ -62,14 +63,39 @@ public class SpaceUserCompatibilityController {
         return ResultUtils.success(result);
     }
 
+    @PostMapping("/list/page")
+    public BaseResponse<List<SpaceMemberVO>> listPage(@RequestBody Map<String, Object> body, HttpServletRequest request) {
+        return list(body, request);
+    }
+
+    @GetMapping("/list")
+    public BaseResponse<List<SpaceMemberVO>> listGet(@RequestParam(required = false) Long spaceId,
+                                                      @RequestParam(required = false) Long id,
+                                                      HttpServletRequest request) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("spaceId", spaceId == null ? id : spaceId);
+        return list(body, request);
+    }
+
     private BaseResponse<Boolean> save(Map<String, Object> body, HttpServletRequest request) {
         ThrowUtils.throwIf(body == null, ErrorCode.PARAMS_ERROR);
         Long spaceId = id(body.get("spaceId"));
         Long userId = id(body.get("userId"));
         String role = body.get("spaceRole") == null ? "viewer" : String.valueOf(body.get("spaceRole"));
         ThrowUtils.throwIf(spaceId == null || userId == null, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(users.getById(userId) == null, ErrorCode.NOT_FOUND_ERROR, "用户不存在");
         spaces.setMember(spaceId, userId, role, users.getLoginUser(request));
         return ResultUtils.success(true);
+    }
+
+    @PostMapping("/remove")
+    public BaseResponse<Boolean> remove(@RequestBody Map<String, Object> body, HttpServletRequest request) {
+        return delete(body, request);
+    }
+
+    @PostMapping("/update")
+    public BaseResponse<Boolean> update(@RequestBody Map<String, Object> body, HttpServletRequest request) {
+        return save(body, request);
     }
 
     private static Long id(Object value) {

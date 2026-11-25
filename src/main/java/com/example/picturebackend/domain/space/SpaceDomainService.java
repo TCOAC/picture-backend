@@ -99,6 +99,8 @@ public class SpaceDomainService {
         ThrowUtils.throwIf(!Integer.valueOf(1).equals(space.getSpaceType()), ErrorCode.PARAMS_ERROR, "仅团队空间可添加成员");
         ThrowUtils.throwIf(space.getUserId().equals(userId), ErrorCode.PARAMS_ERROR, "不能变更空间创建者权限");
         ThrowUtils.throwIf(!Arrays.asList("viewer", "editor", "admin").contains(role), ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf("admin".equals(role) && !isAdmin(user) && !space.getUserId().equals(user.getId()),
+                ErrorCode.NO_AUTH_ERROR, "只有空间创建者可以授予管理权限");
         SpaceUser member = members.selectOne(new QueryWrapper<SpaceUser>().eq("spaceId", id).eq("userId", userId));
         ThrowUtils.throwIf(member==null && members.selectCount(new QueryWrapper<SpaceUser>().eq("spaceId",id))>=50,
             ErrorCode.OPERATION_ERROR,"团队最多 50 名成员");
@@ -110,7 +112,20 @@ public class SpaceDomainService {
 
     public void removeMember(Long id, Long userId, User user) {
         check(id, user, "admin");
-        ThrowUtils.throwIf(require(id).getUserId().equals(userId), ErrorCode.PARAMS_ERROR, "不能移除空间创建者");
+        Space space = require(id);
+        ThrowUtils.throwIf(space.getUserId().equals(userId), ErrorCode.PARAMS_ERROR, "不能移除空间创建者");
+        SpaceUser target = members.selectOne(new QueryWrapper<SpaceUser>().eq("spaceId", id).eq("userId", userId));
+        ThrowUtils.throwIf(target != null && "admin".equals(target.getSpaceRole())
+                        && !isAdmin(user) && !space.getUserId().equals(user.getId()),
+                ErrorCode.NO_AUTH_ERROR, "只有空间创建者可以移除管理员");
         members.delete(new QueryWrapper<SpaceUser>().eq("spaceId", id).eq("userId", userId));
+    }
+
+    @Transactional
+    public void leave(Long id, User user) {
+        Space space = require(id);
+        ThrowUtils.throwIf(space.getUserId().equals(user.getId()), ErrorCode.PARAMS_ERROR, "空间创建者不能退出空间");
+        ThrowUtils.throwIf(members.delete(new QueryWrapper<SpaceUser>().eq("spaceId", id).eq("userId", user.getId())) < 1,
+                ErrorCode.NOT_FOUND_ERROR, "你不是该空间成员");
     }
 }

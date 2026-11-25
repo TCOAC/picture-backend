@@ -12,6 +12,7 @@ import com.example.picturebackend.model.enums.UserRoleEnum;
 import com.example.picturebackend.model.tdo.user.UserQueryRequest;
 import com.example.picturebackend.model.vo.LoginUserVO;
 import com.example.picturebackend.service.UserService;
+import com.example.picturebackend.service.LoginTokenService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
@@ -32,6 +33,9 @@ import java.util.stream.Collectors;
 @Service
 public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         implements UserService {
+
+    @javax.annotation.Resource
+    private LoginTokenService loginTokenService;
 
     @Override
     public long userRegister(String userAccount, String userPassword, String checkPassword) {
@@ -113,14 +117,21 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         if(request.getSession(false)!=null)request.getSession(false).invalidate();
         // 3. 记录用户的登录态
         request.getSession().setAttribute(USER_LOGIN_STATE, user);
-        return this.getLoginUserVO(user);
+        LoginUserVO result = this.getLoginUserVO(user);
+        result.setToken(loginTokenService.issue(user.getId()));
+        return result;
     }
 
     @Override
     public User getLoginUser(HttpServletRequest request) {
         // 先判断是否已登录
-        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
-        User currentUser = (User) userObj;
+        Object userObj = request.getSession(false) == null ? null :
+                request.getSession(false).getAttribute(USER_LOGIN_STATE);
+        User currentUser = userObj instanceof User ? (User) userObj : null;
+        if (currentUser == null || currentUser.getId() == null) {
+            Long tokenUserId = loginTokenService.resolve(readToken(request));
+            currentUser = tokenUserId == null ? null : this.getById(tokenUserId);
+        }
         if (currentUser == null || currentUser.getId() == null) {
             throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
         }
@@ -146,13 +157,32 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     @Override
     public boolean userLogout(HttpServletRequest request) {
         // 先判断是否已登录
-        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
-        if (userObj == null) {
+        Object userObj = request.getSession(false) == null ? null :
+                request.getSession(false).getAttribute(USER_LOGIN_STATE);
+        String token = readToken(request);
+        if (userObj == null && loginTokenService.resolve(token) == null) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "未登录");
         }
         // 移除登录态
-        request.getSession().invalidate();
+        loginTokenService.revoke(token);
+        if (request.getSession(false) != null) {
+            request.getSession(false).invalidate();
+        }
         return true;
+    }
+
+    private String readToken(HttpServletRequest request) {
+        String token = request.getHeader("satoken");
+        if (StrUtil.isBlank(token)) {
+            token = request.getHeader("X-Auth-Token");
+        }
+        if (StrUtil.isBlank(token)) {
+            token = request.getHeader("Authorization");
+            if (StrUtil.startWithIgnoreCase(token, "Bearer ")) {
+                token = token.substring(7);
+            }
+        }
+        return StrUtil.trim(token);
     }
 
     @Override

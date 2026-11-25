@@ -26,7 +26,7 @@ public class SpaceController {
     private final UserService users;
 
     @Data public static class SpaceRequest {
-        private Long id; private String spaceName; private Integer spaceType; private Integer spaceLevel;
+        private Long id; private Long spaceId; private String spaceName; private Integer spaceType; private Integer spaceLevel;
         private Long userId; private String userAccount; private String spaceRole;
     }
 
@@ -103,21 +103,34 @@ public class SpaceController {
 
     @PostMapping("/member")
     public BaseResponse<Boolean> member(@RequestBody SpaceRequest body, HttpServletRequest request) {
-        ThrowUtils.throwIf(body == null || body.getId() == null, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(body == null || (body.getId() == null && body.getSpaceId() == null), ErrorCode.PARAMS_ERROR);
+        Long spaceId = body.getId() == null ? body.getSpaceId() : body.getId();
         User loginUser = users.getLoginUser(request);
-        spaces.check(body.getId(), loginUser, "admin");
+        spaces.check(spaceId, loginUser, "admin");
         User member = body.getUserId() != null ? users.getById(body.getUserId()) : null;
         if (member == null && StringUtils.hasText(body.getUserAccount())) {
             member = users.getOne(new QueryWrapper<User>().eq("userAccount", body.getUserAccount().trim()));
         }
         ThrowUtils.throwIf(member == null, ErrorCode.NOT_FOUND_ERROR, "用户不存在");
-        spaces.setMember(body.getId(),member.getId(),body.getSpaceRole(),loginUser);
+        spaces.setMember(spaceId,member.getId(),body.getSpaceRole() == null ? "viewer" : body.getSpaceRole(),loginUser);
         return ResultUtils.success(true);
     }
 
     @PostMapping("/member/delete")
     public BaseResponse<Boolean> removeMember(@RequestBody SpaceRequest body, HttpServletRequest request) {
-        ThrowUtils.throwIf(body==null||body.getId()==null||body.getUserId()==null,ErrorCode.PARAMS_ERROR);
-        spaces.removeMember(body.getId(),body.getUserId(),users.getLoginUser(request)); return ResultUtils.success(true);
+        ThrowUtils.throwIf(body==null||(body.getId()==null&&body.getSpaceId()==null)||body.getUserId()==null,ErrorCode.PARAMS_ERROR);
+        spaces.removeMember(body.getId()==null?body.getSpaceId():body.getId(),body.getUserId(),users.getLoginUser(request)); return ResultUtils.success(true);
+    }
+
+    @PostMapping("/member/leave")
+    public BaseResponse<Boolean> leave(@RequestBody SpaceRequest body, HttpServletRequest request) {
+        ThrowUtils.throwIf(body == null || body.getId() == null, ErrorCode.PARAMS_ERROR);
+        spaces.leave(body.getId(), users.getLoginUser(request));
+        return ResultUtils.success(true);
+    }
+
+    @GetMapping("/member/list")
+    public BaseResponse<List<SpaceMemberVO>> memberList(@RequestParam Long spaceId, HttpServletRequest request) {
+        return members(spaceId, request);
     }
 }
